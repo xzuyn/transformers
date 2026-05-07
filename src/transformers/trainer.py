@@ -69,6 +69,7 @@ from .integrations.deepspeed import (
 from .integrations.fsdp import get_fsdp_ckpt_kwargs, update_fsdp_plugin_peft
 from .integrations.liger import apply_liger_kernel
 from .integrations.neftune import activate_neftune, deactivate_neftune
+from .integrations.zclip import ZClip
 from .integrations.peft import MIN_PEFT_VERSION
 from .integrations.tpu import save_tpu_checkpoint, tpu_spmd_dataloader, wrap_model_xla_fsdp
 from .modelcard import TrainingSummary
@@ -591,6 +592,17 @@ class Trainer:
         self._train_batch_size = args.train_batch_size
         # Guards one-time LR scheduler creation in create_optimizer_and_scheduler
         self._created_lr_scheduler = False
+        # ZClip instance; None when use_zclip=False
+        self.zclip = (
+            ZClip(
+                alpha=args.zclip_alpha,
+                z_thres=args.zclip_z_thres,
+                warmup_steps=args.zclip_warmup_steps,
+                eps=args.zclip_eps,
+            )
+            if args.use_zclip
+            else None
+        )
 
         self.control = self.callback_handler.on_init_end(self.args, self.state, self.control)
 
@@ -1755,7 +1767,10 @@ class Trainer:
 
                 if do_sync_step:
                     grad_norm = None
-                    if self.args.max_grad_norm > 0:
+                    if self.zclip is not None:
+                        grad_norm, zclip_logs = self.zclip(self.accelerator, model.parameters())
+                        self.log(zclip_logs)
+                    elif self.args.max_grad_norm > 0:
                         grad_norm = self._clip_grad_norm(model)
                     grad_norm = self._get_grad_norm(model, grad_norm=grad_norm)
 

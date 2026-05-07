@@ -268,6 +268,23 @@ class TrainingArguments:
             optimizer step. Prevents gradient explosion by scaling down gradients when their global
             norm exceeds this threshold. Set to 0 to disable clipping. Typical values:
             1.0 (standard), 0.5 (more conservative), 5.0 (less aggressive).
+            Ignored when `use_zclip=True`.
+        use_zclip (`bool`, *optional*, defaults to `False`):
+            Use ZClip adaptive gradient clipping instead of fixed `max_grad_norm` clipping.
+            ZClip detects gradient norm spikes via z-score and applies reciprocal clipping only
+            when a spike is detected, leaving normal steps unaffected.
+        zclip_alpha (`float`, *optional*, defaults to 0.97):
+            EMA decay factor for ZClip's running mean and variance estimates. Higher values
+            give more weight to historical norms. Only used when `use_zclip=True`.
+        zclip_z_thres (`float`, *optional*, defaults to 2.5):
+            Z-score threshold above which a gradient norm is considered a spike. Only used
+            when `use_zclip=True`.
+        zclip_warmup_steps (`int`, *optional*, defaults to 25):
+            Number of steps used to initialise ZClip's EMA statistics before spike detection
+            is active. Only used when `use_zclip=True`.
+        zclip_eps (`float`, *optional*, defaults to 1e-6):
+            Small epsilon added to the standard deviation in ZClip's z-score denominator for
+            numerical stability. Only used when `use_zclip=True`.
         label_smoothing_factor (`float`, *optional*, defaults to 0.0):
             Label smoothing factor to prevent overconfidence. Replaces hard 0/1 targets with soft
             targets: 0 becomes `ε/num_labels` and 1 becomes `1 - ε + ε/num_labels`, where
@@ -868,7 +885,23 @@ class TrainingArguments:
         },
     )
     max_grad_norm: float = field(
-        default=1.0, metadata={"help": "Maximum gradient norm for gradient clipping. Set to 0 to disable."}
+        default=1.0, metadata={"help": "Maximum gradient norm for gradient clipping. Set to 0 to disable. Ignored when use_zclip=True."}
+    )
+    use_zclip: bool = field(
+        default=False,
+        metadata={"help": "Use ZClip adaptive gradient clipping instead of fixed max_grad_norm clipping."},
+    )
+    zclip_alpha: float = field(
+        default=0.97, metadata={"help": "EMA decay for ZClip running mean/variance. Only used when use_zclip=True."}
+    )
+    zclip_z_thres: float = field(
+        default=2.5, metadata={"help": "Z-score spike threshold for ZClip. Only used when use_zclip=True."}
+    )
+    zclip_warmup_steps: int = field(
+        default=25, metadata={"help": "Warmup steps before ZClip spike detection is active. Only used when use_zclip=True."}
+    )
+    zclip_eps: float = field(
+        default=1e-6, metadata={"help": "Epsilon for ZClip z-score denominator stability. Only used when use_zclip=True."}
     )
     label_smoothing_factor: float = field(
         default=0.0, metadata={"help": "Label smoothing factor to prevent overconfidence. Zero means no smoothing."}
