@@ -54,8 +54,7 @@ class ZClip:
             "zclip/mu": self.mu,
             "zclip/sigma": math.sqrt(self.v) if self.v > 0 else 0.0,
             "zclip/z_score": 0.0,
-            "zclip/is_spike": False,
-            "zclip/warmed_up": self.is_warmed_up,
+            "zclip/norm_scaling": 1.0,
         }
 
         # Gracefully handle invalid gradients (NaN/Inf)
@@ -76,7 +75,6 @@ class ZClip:
                 # Update logs for the exact step warmup finishes
                 logs["zclip/mu"] = self.mu
                 logs["zclip/sigma"] = math.sqrt(self.v)
-                logs["zclip/warmed_up"] = True
 
             return g_t_tensor, logs
 
@@ -87,17 +85,17 @@ class ZClip:
         logs["zclip/z_score"] = z_t
 
         g_t_star = g_t
-        is_spike = z_t > self.z_thres
-        logs["zclip/is_spike"] = is_spike
 
-        if is_spike:
+        if z_t > self.z_thres:
             # Gradient Adjustment (Reciprocal Clipping)
             g_t_star = self.mu + ((self.z_thres**2) / z_t) * std_dev
             logs["zclip/clipped_norm"] = g_t_star
 
         # Apply the clipping scaling to gradients if a spike was detected
         if g_t_star < g_t:
-            clip_coef = g_t_star / (g_t + 1e-6)
+            clip_coef = g_t_star / (g_t + self.eps)
+            logs["zclip/norm_scaling"] = clip_coef
+
             clip_coef_tensor = torch.tensor(clip_coef, device=g_t_tensor.device)
 
             for p in params_list:
